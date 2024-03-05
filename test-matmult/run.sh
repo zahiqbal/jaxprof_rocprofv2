@@ -1,0 +1,57 @@
+
+#!/bin/bash
+
+# Check if exactly two arguments are provided
+if [ "$#" -ne 2 ]; then
+    echo "Usage: $0 <rows> <cols>"
+    echo "example 1: $0 32 32"
+    exit 1
+fi
+
+# Assign arguments to variables for clarity
+rows=$1
+cols=$2
+
+export HIP_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+export TF_CPP_MIN_LOG_LEVEL=0
+export TF_CPP_VMODULE=[device_tracer_rocm=5, rocm_tracer=5]
+
+outdir=$PWD/results/matmult_${rows}x${cols}
+
+if [ -d "$outdir" ]; then
+    # The directory exists, so remove it
+    rm -rf "$outdir"
+    echo "Directory '$outdir' has been removed."
+else
+    echo "Directory '$outdir' has been removed."
+fi
+
+echo $outdir
+mkdir -p ${outdir}
+
+rocprofv2 --kernel-trace --hip-api --hip-activity --plugin file -d ${outdir} python3 test_matmult.py $rows $cols 2>&1 | tee ${outdir}/console.log
+
+# Use find to search for the file
+perfetto_gz_file=$(find ${outdir} -type f -name perfetto_trace.json.gz)
+rocprof_csv_file=$(find ${outdir} -type f -name *.csv)
+
+echo "File perfetto:$perfetto_gz_file and rocprof:$rocprof_csv_file"
+
+# Check if the files were found
+if [ -e "$perfetto_gz_file" ] && [ -e "$rocprof_csv_file" ]; then
+    # Unzip the file
+    gzip -d "${perfetto_gz_file}" && echo "File unzipped successfully."
+    perfetto_file=$(find ${outdir} -type f -name 'perfetto_trace.json')
+
+    # Process the files with the Python script
+    python3 ../bin/profiler_data_parser.py --jaxprof_trace "$perfetto_file" --kernel_trace "$rocprof_kernel_trace_file" --hip_trace "$rocprof_hip_trace_file"  2>&1 | tee ${outdir}/prof_tool_console.log
+
+else
+
+    if [ -e "$perfetto_gz_file" ]; then
+        echo "File: $rocprof_csv_file' not found."
+    else
+         echo "File: '$perfetto_gz_file' not found."
+    fi
+
+fi
