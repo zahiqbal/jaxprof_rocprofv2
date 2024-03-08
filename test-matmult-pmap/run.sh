@@ -11,7 +11,7 @@ size=$1
 
 export HIP_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 export TF_CPP_MIN_LOG_LEVEL=0
-export TF_CPP_VMODULE=[device_tracer_rocm=5, rocm_tracer=5]
+export TF_CPP_VMODULE=[device_tracer_rocm=5,rocm_tracer=5,rocm_collector=5]
 
 outdir=$PWD/results_${size}
 
